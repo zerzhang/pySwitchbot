@@ -61,10 +61,13 @@ DISCONNECT_DELAY = 8.5
 
 
 class ColorMode(Enum):
-    OFF = 0
-    COLOR_TEMP = 1
+    WHITE = 0
+    BRIGHTNESS = 1
     RGB = 2
-    EFFECT = 3
+    SCENE = 3
+    MUSIC = 4
+    CONTROLLER = 5
+    COLOR_TEMP = 6
 
 
 # If the scanner is in passive mode, we
@@ -828,6 +831,19 @@ class SwitchbotEncryptedDevice(SwitchbotDevice):
             return False
 
         return info is not None
+
+    async def _send_multiple_commands(self, keys: list[str]) -> bool:
+        """
+        Send multiple commands to device.
+
+        Since we current have no way to tell which command the device
+        needs we send both.
+        """
+        final_result = False
+        for key in keys:
+            result = await self._send_command(key)
+            final_result |= self._check_command_result(result, 0, {1})
+        return final_result
 
     async def _send_command(
         self, key: str, retry: int | None = None, encrypt: bool = True

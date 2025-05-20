@@ -11,7 +11,7 @@ from switchbot.adv_parser import parse_advertisement_data
 from switchbot.const.lock import LockStatus
 from switchbot.models import SwitchBotAdvertisement
 
-from . import AirPurifierTestCase
+from . import AdvTestCase
 
 ADVERTISEMENT_DATA_DEFAULTS = {
     "local_name": "",
@@ -2651,7 +2651,7 @@ def test_s10_with_empty_data() -> None:
 @pytest.mark.parametrize(
     "test_case",
     [
-        AirPurifierTestCase(
+        AdvTestCase(
             b"\xf0\x9e\x9e\x96j\xd6\xa1\x81\x88\xe4\x00\x01\x95\x00\x00",
             b"7\x00\x00\x95-\x00",
             {
@@ -2669,7 +2669,7 @@ def test_s10_with_empty_data() -> None:
             "Air Purifier Table",
             SwitchbotModel.AIR_PURIFIER_TABLE,
         ),
-        AirPurifierTestCase(
+        AdvTestCase(
             b'\xcc\x8d\xa2\xa7\x92>\t"\x80\x000\x00\x0f\x00\x00',
             b"*\x00\x00\x15\x04\x00",
             {
@@ -2687,7 +2687,7 @@ def test_s10_with_empty_data() -> None:
             "Air Purifier",
             SwitchbotModel.AIR_PURIFIER,
         ),
-        AirPurifierTestCase(
+        AdvTestCase(
             b"\xcc\x8d\xa2\xa7\xe4\xa6\x0b\x83\x88d\x00\xea`\x00\x00",
             b"+\x00\x00\x15\x04\x00",
             {
@@ -2705,7 +2705,7 @@ def test_s10_with_empty_data() -> None:
             "Air Purifier",
             SwitchbotModel.AIR_PURIFIER,
         ),
-        AirPurifierTestCase(
+        AdvTestCase(
             b"\xcc\x8d\xa2\xa7\xc1\xae\x9b\x81\x8c\xb2\x00\x01\x94\x00\x00",
             b"8\x00\x00\x95-\x00",
             {
@@ -2723,7 +2723,7 @@ def test_s10_with_empty_data() -> None:
             "Air Purifier Table",
             SwitchbotModel.AIR_PURIFIER_TABLE,
         ),
-        AirPurifierTestCase(
+        AdvTestCase(
             b"\xcc\x8d\xa2\xa7\xc1\xae\x9e\xa1\x8c\x800\x01\x95\x00\x00",
             b"8\x00\x00\x95-\x00",
             {
@@ -2741,7 +2741,7 @@ def test_s10_with_empty_data() -> None:
             "Air Purifier Table",
             SwitchbotModel.AIR_PURIFIER_TABLE,
         ),
-        AirPurifierTestCase(
+        AdvTestCase(
             b"\xcc\x8d\xa2\xa7\xc1\xae\x9e\x05\x8c\x800\x01\x95\x00\x00",
             b"8\x00\x00\x95-\x00",
             {
@@ -2761,7 +2761,7 @@ def test_s10_with_empty_data() -> None:
         ),
     ],
 )
-def test_air_purifier_active(test_case: AirPurifierTestCase) -> None:
+def test_air_purifier_active(test_case: AdvTestCase) -> None:
     ble_device = generate_ble_device("aa:bb:cc:dd:ee:ff", "any")
     adv_data = generate_advertisement_data(
         manufacturer_data={2409: test_case.manufacturer_data},
@@ -2940,3 +2940,128 @@ def test_hub3_with_empty_data() -> None:
         rssi=-97,
         active=True,
     )
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        AdvTestCase(
+            b'\xc0N0\xe0U\x9a\x85\x9e"\xd0\x00\x00\x00\x00\x00\x00\x12\x91\x00',
+            b'\x00\x00\x00\x00\x10\xd0\xb1',
+            {
+                "sequence_number": 133,
+                "isOn": True,
+                "brightness": 30,
+                "delay": False,
+                "network_state": 2,
+                "color_mode": 2,
+                "cw": 4753,
+            },
+            b'\x00\x10\xd0\xb1',
+            "Strip Light 3",
+            SwitchbotModel.STRIP_LIGHT_3
+        ),
+        AdvTestCase(
+            b'\xa0\x85\xe3e,\x06P\xaa"\xd4\x00\x00\x00\x00\x00\x00\r\x93\x00',
+            b'\x00\x00\x00\x00\x10\xd0\xb0',
+            {
+                "sequence_number": 80,
+                "isOn": True,
+                "brightness": 42,
+                "delay": False,
+                "network_state": 2,
+                "color_mode": 2,
+                "cw": 3475,
+            },
+            b'\x00\x10\xd0\xb0',
+            "Floor Lamp",
+            SwitchbotModel.FLOOR_LAMP,
+        )
+    ],
+)
+def test_light_active(test_case: AdvTestCase) -> None:
+    """Test parsing light with active data."""
+    ble_device = generate_ble_device("aa:bb:cc:dd:ee:ff", "any")
+    adv_data = generate_advertisement_data(
+        manufacturer_data={2409: test_case.manufacturer_data},
+        service_data={"0000fd3d-0000-1000-8000-00805f9b34fb": test_case.service_data},
+        rssi=-97,
+    )
+    result = parse_advertisement_data(ble_device, adv_data)
+    assert result == SwitchBotAdvertisement(
+        address="aa:bb:cc:dd:ee:ff",
+        data={
+            "rawAdvData": test_case.service_data,
+            "data": test_case.data,
+            "isEncrypted": False,
+            "model": test_case.model,
+            "modelFriendlyName": test_case.modelFriendlyName,
+            "modelName": test_case.modelName,
+        },
+        device=ble_device,
+        rssi=-97,
+        active=True,
+    )
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        AdvTestCase(
+            b'\xc0N0\xe0U\x9a\x85\x9e"\xd0\x00\x00\x00\x00\x00\x00\x12\x91\x00',
+            None,
+            {
+                "sequence_number": 133,
+                "isOn": True,
+                "brightness": 30,
+                "delay": False,
+                "network_state": 2,
+                "color_mode": 2,
+                "cw": 4753,
+            },
+            b'\x00\x10\xd0\xb1',
+            "Strip Light 3",
+            SwitchbotModel.STRIP_LIGHT_3
+        ),
+        AdvTestCase(
+            b'\xa0\x85\xe3e,\x06P\xaa"\xd4\x00\x00\x00\x00\x00\x00\r\x93\x00',
+            b'\x00\x00\x00\x00\x10\xd0\xb0',
+            {
+                "sequence_number": 80,
+                "isOn": True,
+                "brightness": 42,
+                "delay": False,
+                "network_state": 2,
+                "color_mode": 2,
+                "cw": 3475,
+            },
+            b'\x00\x10\xd0\xb0',
+            "Floor Lamp",
+            SwitchbotModel.FLOOR_LAMP,
+        )
+    ],
+)
+def test_light_passive(test_case: AdvTestCase) -> None:
+    """Test parsing light with passive data."""
+    ble_device = generate_ble_device("aa:bb:cc:dd:ee:ff", "any")
+    adv_data = generate_advertisement_data(
+        manufacturer_data={2409: test_case.manufacturer_data},
+        service_data={"0000fd3d-0000-1000-8000-00805f9b34fb": test_case.service_data},
+        rssi=-97,
+    )
+    result = parse_advertisement_data(ble_device, adv_data)
+    assert result == SwitchBotAdvertisement(
+        address="aa:bb:cc:dd:ee:ff",
+        data={
+            "rawAdvData": test_case.service_data,
+            "data": test_case.data,
+            "isEncrypted": False,
+            "model": test_case.model,
+            "modelFriendlyName": test_case.modelFriendlyName,
+            "modelName": test_case.modelName,
+        },
+        device=ble_device,
+        rssi=-97,
+        active=True,
+    )
+

@@ -76,6 +76,9 @@ class SwitchbotModel(StrEnum):
     AIR_PURIFIER = "Air Purifier"
     AIR_PURIFIER_TABLE = "Air Purifier Table"
     HUB3 = "Hub3"
+    STRIP_LIGHT_3 = "Strip Light 3"
+    FLOOR_LAMP = "Floor Lamp"
+
 
 
 __all__ = [

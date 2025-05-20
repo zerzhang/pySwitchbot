@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-import time
 from abc import abstractmethod
 from typing import Any
 
@@ -61,6 +60,14 @@ class SwitchbotBaseLight(SwitchbotDevice):
         """Return bulb state from cache."""
         return self._get_adv_value("isOn")
 
+    def get_effect_list(self) -> list[str]:
+        """Return the list of supported effects."""
+        return None
+
+    def get_effect(self):
+        """Return the current effect."""
+        return self._get_adv_value("effect")
+
     @abstractmethod
     async def turn_on(self) -> bool:
         """Turn device on."""
@@ -84,10 +91,6 @@ class SwitchbotBaseLight(SwitchbotDevice):
     def poll_needed(self, last_poll_time: float | None) -> bool:
         """Return if poll is needed."""
         return False
-
-    async def update(self) -> None:
-        """Update device data."""
-        self._last_full_update = time.monotonic()
 
 
 class SwitchbotSequenceBaseLight(SwitchbotBaseLight):
