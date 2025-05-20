@@ -3294,3 +3294,128 @@ def test_humidifer_with_empty_data() -> None:
         rssi=-97,
         active=True,
     )
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        AdvTestCase(
+            b'\xc0N0\xe0U\x9a\x85\x9e"\xd0\x00\x00\x00\x00\x00\x00\x12\x91\x00',
+            b'\x00\x00\x00\x00\x10\xd0\xb1',
+            {
+                "sequence_number": 133,
+                "isOn": True,
+                "brightness": 30,
+                "delay": False,
+                "network_state": 2,
+                "color_mode": 2,
+                "cw": 4753,
+            },
+            b'\x00\x10\xd0\xb1',
+            "Strip Light 3",
+            SwitchbotModel.STRIP_LIGHT_3
+        ),
+        AdvTestCase(
+            b'\xa0\x85\xe3e,\x06P\xaa"\xd4\x00\x00\x00\x00\x00\x00\r\x93\x00',
+            b'\x00\x00\x00\x00\x10\xd0\xb0',
+            {
+                "sequence_number": 80,
+                "isOn": True,
+                "brightness": 42,
+                "delay": False,
+                "network_state": 2,
+                "color_mode": 2,
+                "cw": 3475,
+            },
+            b'\x00\x10\xd0\xb0',
+            "Floor Lamp",
+            SwitchbotModel.FLOOR_LAMP,
+        )
+    ],
+)
+def test_light_active(test_case: AdvTestCase) -> None:
+    """Test parsing light with active data."""
+    ble_device = generate_ble_device("aa:bb:cc:dd:ee:ff", "any")
+    adv_data = generate_advertisement_data(
+        manufacturer_data={2409: test_case.manufacturer_data},
+        service_data={"0000fd3d-0000-1000-8000-00805f9b34fb": test_case.service_data},
+        rssi=-97,
+    )
+    result = parse_advertisement_data(ble_device, adv_data)
+    assert result == SwitchBotAdvertisement(
+        address="aa:bb:cc:dd:ee:ff",
+        data={
+            "rawAdvData": test_case.service_data,
+            "data": test_case.data,
+            "isEncrypted": False,
+            "model": test_case.model,
+            "modelFriendlyName": test_case.modelFriendlyName,
+            "modelName": test_case.modelName,
+        },
+        device=ble_device,
+        rssi=-97,
+        active=True,
+    )
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        AdvTestCase(
+            b'\xc0N0\xe0U\x9a\x85\x9e"\xd0\x00\x00\x00\x00\x00\x00\x12\x91\x00',
+            None,
+            {
+                "sequence_number": 133,
+                "isOn": True,
+                "brightness": 30,
+                "delay": False,
+                "network_state": 2,
+                "color_mode": 2,
+                "cw": 4753,
+            },
+            b'\x00\x10\xd0\xb1',
+            "Strip Light 3",
+            SwitchbotModel.STRIP_LIGHT_3
+        ),
+        AdvTestCase(
+            b'\xa0\x85\xe3e,\x06P\xaa"\xd4\x00\x00\x00\x00\x00\x00\r\x93\x00',
+            b'\x00\x00\x00\x00\x10\xd0\xb0',
+            {
+                "sequence_number": 80,
+                "isOn": True,
+                "brightness": 42,
+                "delay": False,
+                "network_state": 2,
+                "color_mode": 2,
+                "cw": 3475,
+            },
+            b'\x00\x10\xd0\xb0',
+            "Floor Lamp",
+            SwitchbotModel.FLOOR_LAMP,
+        )
+    ],
+)
+def test_light_passive(test_case: AdvTestCase) -> None:
+    """Test parsing light with passive data."""
+    ble_device = generate_ble_device("aa:bb:cc:dd:ee:ff", "any")
+    adv_data = generate_advertisement_data(
+        manufacturer_data={2409: test_case.manufacturer_data},
+        service_data={"0000fd3d-0000-1000-8000-00805f9b34fb": test_case.service_data},
+        rssi=-97,
+    )
+    result = parse_advertisement_data(ble_device, adv_data)
+    assert result == SwitchBotAdvertisement(
+        address="aa:bb:cc:dd:ee:ff",
+        data={
+            "rawAdvData": test_case.service_data,
+            "data": test_case.data,
+            "isEncrypted": False,
+            "model": test_case.model,
+            "modelFriendlyName": test_case.modelFriendlyName,
+            "modelName": test_case.modelName,
+        },
+        device=ble_device,
+        rssi=-97,
+        active=True,
+    )
+

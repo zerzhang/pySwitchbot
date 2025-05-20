@@ -83,6 +83,9 @@ class SwitchbotModel(StrEnum):
     HUB3 = "Hub3"
     LOCK_ULTRA = "Lock Ultra"
     LOCK_LITE = "Lock Lite"
+    STRIP_LIGHT_3 = "Strip Light 3"
+    FLOOR_LAMP = "Floor Lamp"
+
 
 
 __all__ = [
