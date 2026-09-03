@@ -22,6 +22,7 @@ from switchbot.devices.device import (
     SwitchbotDevice,
     SwitchbotEncryptedDevice,
     _extract_region,
+    _masked_device_id,
 )
 
 from .test_adv_parser import generate_ble_device
@@ -396,6 +397,22 @@ async def test_fetch_cloud_devices_by_token_authentication_error() -> None:
 
 
 @pytest.mark.asyncio
+async def test_get_user_info_preserves_authentication_error() -> None:
+    """Test user info retrieval preserves authentication errors."""
+    with patch.object(
+        SwitchbotBaseDevice,
+        "api_request",
+        side_effect=SwitchbotAuthenticationError("invalid token"),
+    ):
+        session = MagicMock(spec=aiohttp.ClientSession)
+        with pytest.raises(SwitchbotAuthenticationError, match="invalid token"):
+            await SwitchbotBaseDevice._async_get_user_info(
+                session,
+                {"authorization": "invalid-token"},
+            )
+
+
+@pytest.mark.asyncio
 async def test_api_request_debug_logs_response_shape_without_values(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
@@ -452,6 +469,44 @@ async def test_api_request_authentication_error() -> None:
             {},
             {"authorization": "invalid-token"},
         )
+
+
+@pytest.mark.asyncio
+async def test_retrieve_encryption_key_with_password() -> None:
+    """Test the password flow delegates with its access token."""
+    key_details = {
+        "key_id": "ff",
+        "encryption_key": "ffffffffffffffffffffffffffffffff",
+    }
+    with (
+        patch.object(
+            SwitchbotEncryptedDevice,
+            "_get_auth_result",
+            return_value={"access_token": "password-access-token"},
+        ) as mock_get_auth_result,
+        patch.object(
+            SwitchbotEncryptedDevice,
+            "_async_retrieve_encryption_key",
+            return_value=key_details,
+        ) as mock_retrieve_key,
+    ):
+        session = MagicMock(spec=aiohttp.ClientSession)
+        result = await SwitchbotEncryptedDevice.async_retrieve_encryption_key(
+            session,
+            "aa:bb:cc:dd:ee:ff",
+            "test@example.com",
+            "password",
+        )
+
+    mock_get_auth_result.assert_awaited_once_with(
+        session, "test@example.com", "password"
+    )
+    mock_retrieve_key.assert_awaited_once_with(
+        session,
+        "aa:bb:cc:dd:ee:ff",
+        {"authorization": "password-access-token"},
+    )
+    assert result == key_details
 
 
 @pytest.mark.asyncio
@@ -593,6 +648,11 @@ async def test_populate_model_to_mac_cache() -> None:
 
     # Clear cache after test
     _MODEL_TO_MAC_CACHE.clear()
+
+
+def test_masked_device_id_empty() -> None:
+    """Test an empty device identifier is represented safely."""
+    assert _masked_device_id("") == "unknown"
 
 
 def test_extract_region() -> None:
