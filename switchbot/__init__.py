@@ -14,6 +14,7 @@ from .const import (
     AirQualityLevel,
     BulbColorMode,
     CeilingLightColorMode,
+    CirculatorFanProMode,
     ClimateAction,
     ClimateMode,
     ColorMode,
@@ -49,7 +50,11 @@ from .devices.device import (
     fetch_cloud_devices_by_token,
 )
 from .devices.evaporative_humidifier import SwitchbotEvaporativeHumidifier
-from .devices.fan import SwitchbotFan, SwitchbotStandingFan
+from .devices.fan import (
+    SwitchbotCirculatorFanPro,
+    SwitchbotFan,
+    SwitchbotStandingFan,
+)
 from .devices.humidifier import SwitchbotHumidifier
 from .devices.keypad_vision import SwitchbotKeypadVision
 from .devices.light_strip import (
@@ -58,10 +63,11 @@ from .devices.light_strip import (
     SwitchbotPermanentOutdoorLight,
     SwitchbotRgbicLight,
     SwitchbotRgbicNeonLight,
+    SwitchbotRgbicwwCeilingLight,
     SwitchbotStripLight3,
 )
 from .devices.lock import SwitchbotLock
-from .devices.meter_pro import SwitchbotMeterProCO2
+from .devices.meter_pro import SwitchbotMeterPro, SwitchbotMeterProCO2
 from .devices.plug import SwitchbotPlugMini
 from .devices.relay_switch import (
     SwitchbotGarageDoorOpener,
@@ -70,6 +76,7 @@ from .devices.relay_switch import (
 )
 from .devices.roller_shade import SwitchbotRollerShade
 from .devices.smart_thermostat_radiator import SwitchbotSmartThermostatRadiator
+from .devices.universal_remote import SwitchbotUniversalRemote
 from .devices.vacuum import SwitchbotVacuum
 from .discovery import GetSwitchbotDevices
 from .models import SwitchBotAdvertisement
@@ -89,6 +96,7 @@ __all__ = [
     "AirQualityLevel",
     "BulbColorMode",
     "CeilingLightColorMode",
+    "CirculatorFanProMode",
     "ClimateAction",
     "ClimateMode",
     "ColorMode",
@@ -105,7 +113,6 @@ __all__ = [
     "StripLightColorMode",
     "SwitchBotAdvertisement",
     "Switchbot",
-    "Switchbot",
     "SwitchbotAccountConnectionError",
     "SwitchbotAirPurifier",
     "SwitchbotApiError",
@@ -116,6 +123,7 @@ __all__ = [
     "SwitchbotBulb",
     "SwitchbotCandleWarmerLamp",
     "SwitchbotCeilingLight",
+    "SwitchbotCirculatorFanPro",
     "SwitchbotCurtain",
     "SwitchbotDevice",
     "SwitchbotEncryptedDevice",
@@ -126,23 +134,23 @@ __all__ = [
     "SwitchbotKeypadVision",
     "SwitchbotLightStrip",
     "SwitchbotLock",
+    "SwitchbotMeterPro",
     "SwitchbotMeterProCO2",
-    "SwitchbotModel",
     "SwitchbotModel",
     "SwitchbotOperationError",
     "SwitchbotPermanentOutdoorLight",
-    "SwitchbotPlugMini",
     "SwitchbotPlugMini",
     "SwitchbotRelaySwitch",
     "SwitchbotRelaySwitch2PM",
     "SwitchbotRgbicLight",
     "SwitchbotRgbicNeonLight",
+    "SwitchbotRgbicwwCeilingLight",
     "SwitchbotRollerShade",
     "SwitchbotSmartThermostatRadiator",
     "SwitchbotStandingFan",
     "SwitchbotStripLight3",
     "SwitchbotSupportedType",
-    "SwitchbotSupportedType",
+    "SwitchbotUniversalRemote",
     "SwitchbotVacuum",
     "VerticalOscillationAngle",
     "build_oauth_authorize_url",
