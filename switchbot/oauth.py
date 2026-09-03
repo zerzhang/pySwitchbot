@@ -15,20 +15,28 @@ from .const import (
     SwitchbotApiError,
     SwitchbotAuthenticationError,
 )
+from .utils import extract_request_id
 
 _LOGGER = logging.getLogger(__name__)
-_REQUEST_ID_HEADERS = ("x-request-id", "x-amzn-requestid", "cf-ray")
 
 OAUTH_AUTHORIZE_URL = "https://sp.oauth.switchbot.net"
 OAUTH_TOKEN_URL = "https://account.api.switchbot.net/merchant/v1/oauth/token"
 OAUTH_SCOPE = "api_login"
 
 
-def _request_id(headers: Mapping[str, str]) -> str | None:
-    """Extract a provider request identifier for log correlation."""
-    return next(
-        (value for name in _REQUEST_ID_HEADERS if (value := headers.get(name))), None
-    )
+def _oauth_error_field(
+    error_data: Any, field: str, authorization_code: str
+) -> str | None:
+    """Return a bounded OAuth error field with the authorization code redacted."""
+    if not isinstance(error_data, Mapping):
+        return None
+    value = error_data.get(field)
+    if not isinstance(value, str):
+        return None
+    value = " ".join(value.split())
+    if authorization_code:
+        value = value.replace(authorization_code, "<redacted>")
+    return value[:256] or None
 
 
 def build_oauth_authorize_url(
@@ -67,6 +75,8 @@ async def exchange_oauth_code(
         "Exchanging SwitchBot OAuth authorization code; token_host=%s",
         urlsplit(OAUTH_TOKEN_URL).hostname,
     )
+    error: str | None = None
+    error_description: str | None = None
     token_data: Any = None
     try:
         async with session.post(
@@ -85,14 +95,22 @@ async def exchange_oauth_code(
                 "duration_ms=%s request_id=%s",
                 status,
                 round((monotonic() - started) * 1000),
-                _request_id(response.headers) or "unavailable",
+                extract_request_id(response.headers) or "unavailable",
             )
             if status >= 400:
-                detail = await response.text()
+                try:
+                    error_data = await response.json()
+                except (aiohttp.ClientError, ValueError, TypeError):
+                    error_data = None
+                error = _oauth_error_field(error_data, "error", code)
+                error_description = _oauth_error_field(
+                    error_data, "error_description", code
+                )
                 _LOGGER.debug(
                     "SwitchBot OAuth token endpoint returned an error response; "
-                    "body_length=%s",
-                    len(detail),
+                    "error=%s error_description=%s",
+                    error or "unavailable",
+                    error_description or "unavailable",
                 )
             else:
                 try:
@@ -106,13 +124,17 @@ async def exchange_oauth_code(
             f"Failed to connect to SwitchBot OAuth token API: {err}"
         ) from err
 
+    error_detail = ": ".join(
+        value for value in (error, error_description) if value is not None
+    )
+    error_suffix = f": {error_detail}" if error_detail else ""
     if 400 <= status < 500 and status != 429:
         raise SwitchbotAuthenticationError(
-            f"SwitchBot OAuth token request rejected ({status})"
+            f"SwitchBot OAuth token request rejected ({status}){error_suffix}"
         )
     if status == 429 or status >= 500:
         raise SwitchbotAccountConnectionError(
-            f"SwitchBot OAuth token service unavailable ({status})"
+            f"SwitchBot OAuth token service unavailable ({status}){error_suffix}"
         )
     if not isinstance(token_data, dict):
         raise SwitchbotApiError("Invalid response from SwitchBot OAuth token API")

@@ -6,7 +6,7 @@ import asyncio
 import binascii
 import logging
 import time
-from collections.abc import Callable, Mapping
+from collections.abc import Callable
 from dataclasses import replace
 from enum import IntEnum
 from typing import Any, TypeVar, cast
@@ -39,17 +39,9 @@ from ..const import (
 from ..discovery import GetSwitchbotDevices
 from ..helpers import create_background_task
 from ..models import SwitchBotAdvertisement
-from ..utils import format_mac_upper
+from ..utils import extract_request_id, format_mac_upper
 
 _LOGGER = logging.getLogger(__name__)
-_REQUEST_ID_HEADERS = ("x-request-id", "x-amzn-requestid", "cf-ray")
-
-
-def _request_id(headers: Mapping[str, str]) -> str | None:
-    """Extract a provider request identifier for log correlation."""
-    return next(
-        (value for name in _REQUEST_ID_HEADERS if (value := headers.get(name))), None
-    )
 
 
 def _masked_device_id(device_id: str) -> str:
@@ -376,6 +368,8 @@ class SwitchbotBaseDevice:
                 },
                 auth_headers,
             )
+        except SwitchbotAuthenticationError:
+            raise
         except Exception as err:
             raise SwitchbotAccountConnectionError(
                 f"Failed to retrieve devices from SwitchBot Account: {err}"
@@ -408,13 +402,12 @@ class SwitchbotBaseDevice:
                 # Populate the cache
                 populate_model_to_mac_cache(formatted_mac, model)
             else:
+                # Log the full item payload for unknown models
                 _LOGGER.debug(
-                    "Unknown SwitchBot model %s for device=%s; item fields=%s "
-                    "device detail fields=%s",
+                    "Unknown model %s for device %s, full item: %s",
                     model_name,
-                    _masked_device_id(formatted_mac),
-                    sorted(item),
-                    sorted(item.get("device_detail", {})),
+                    formatted_mac,
+                    item,
                 )
 
         _LOGGER.debug("Mapped %s supported SwitchBot cloud devices", len(mac_to_model))
@@ -444,7 +437,7 @@ class SwitchbotBaseDevice:
                 url,
                 result.status,
                 round((time.monotonic() - started) * 1000),
-                _request_id(result.headers) or "unavailable",
+                extract_request_id(result.headers) or "unavailable",
             )
             if result.status in (401, 403):
                 raise SwitchbotAuthenticationError(
@@ -1212,19 +1205,32 @@ class SwitchbotEncryptedDevice(SwitchbotDevice):
                 },
                 auth_headers,
             )
-
-            _LOGGER.debug(
-                "SwitchBot encryption key retrieved successfully; device=%s",
-                masked_device,
-            )
-            return {
-                "key_id": device_info["communicationKey"]["keyId"],
-                "encryption_key": device_info["communicationKey"]["key"],
-            }
+        except SwitchbotAuthenticationError:
+            raise
+        except SwitchbotApiError:
+            raise
         except Exception as err:
             raise SwitchbotAccountConnectionError(
                 f"Failed to retrieve encryption key from SwitchBot Account: {err}"
             ) from err
+
+        communication_key = device_info.get("communicationKey")
+        if not isinstance(communication_key, dict):
+            raise SwitchbotApiError(
+                "Invalid encryption key response from SwitchBot API"
+            )
+        key_id = communication_key.get("keyId")
+        encryption_key = communication_key.get("key")
+        if not isinstance(key_id, str) or not isinstance(encryption_key, str):
+            raise SwitchbotApiError(
+                "Invalid encryption key response from SwitchBot API"
+            )
+
+        _LOGGER.debug(
+            "SwitchBot encryption key retrieved successfully; device=%s",
+            masked_device,
+        )
+        return {"key_id": key_id, "encryption_key": encryption_key}
 
     @classmethod
     async def verify_encryption_key(

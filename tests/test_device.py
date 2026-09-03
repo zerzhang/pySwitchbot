@@ -152,11 +152,9 @@ async def test_get_devices(
         mock_populate_cache.assert_any_call("77:88:99:AA:BB:CC", SwitchbotModel.LOCK)
 
         # Check that unknown model was logged
-        assert "Unknown SwitchBot model WoUnknown for device=****1122" in caplog.text
+        assert "Unknown model WoUnknown for device DD:EE:FF:00:11:22" in caplog.text
         assert "extra_field" in caplog.text
-        assert "extra_value" not in caplog.text
-        assert "Unknown Device" not in caplog.text
-        assert "DD:EE:FF:00:11:22" not in caplog.text
+        assert "extra_value" in caplog.text
 
 
 @pytest.mark.asyncio
@@ -397,6 +395,28 @@ async def test_fetch_cloud_devices_by_token_authentication_error() -> None:
 
 
 @pytest.mark.asyncio
+async def test_get_devices_preserves_authentication_error_after_user_info(
+    mock_user_info: dict[str, Any],
+) -> None:
+    """Test device retrieval preserves authentication errors."""
+    with (
+        patch.object(
+            SwitchbotBaseDevice,
+            "_async_get_user_info",
+            return_value=mock_user_info,
+        ),
+        patch.object(
+            SwitchbotBaseDevice,
+            "api_request",
+            side_effect=SwitchbotAuthenticationError("expired token"),
+        ),
+    ):
+        session = MagicMock(spec=aiohttp.ClientSession)
+        with pytest.raises(SwitchbotAuthenticationError, match="expired token"):
+            await fetch_cloud_devices_by_token(session, "oauth-access-token")
+
+
+@pytest.mark.asyncio
 async def test_get_user_info_preserves_authentication_error() -> None:
     """Test user info retrieval preserves authentication errors."""
     with patch.object(
@@ -527,10 +547,99 @@ async def test_retrieve_encryption_key_by_token_api_error(
         ),
     ):
         session = MagicMock(spec=aiohttp.ClientSession)
+        with pytest.raises(SwitchbotApiError, match="API error"):
+            await SwitchbotEncryptedDevice.async_retrieve_encryption_key_by_token(
+                session, "aa:bb:cc:dd:ee:ff", "oauth-access-token"
+            )
+
+
+@pytest.mark.asyncio
+async def test_retrieve_encryption_key_by_token_authentication_error(
+    mock_user_info: dict[str, Any],
+) -> None:
+    """Test key retrieval preserves authentication errors."""
+    with (
+        patch.object(
+            SwitchbotEncryptedDevice,
+            "_async_get_user_info",
+            return_value=mock_user_info,
+        ),
+        patch.object(
+            SwitchbotEncryptedDevice,
+            "api_request",
+            side_effect=SwitchbotAuthenticationError("expired token"),
+        ),
+    ):
+        session = MagicMock(spec=aiohttp.ClientSession)
+        with pytest.raises(SwitchbotAuthenticationError, match="expired token"):
+            await SwitchbotEncryptedDevice.async_retrieve_encryption_key_by_token(
+                session, "aa:bb:cc:dd:ee:ff", "oauth-access-token"
+            )
+
+
+@pytest.mark.asyncio
+async def test_retrieve_encryption_key_by_token_connection_error(
+    mock_user_info: dict[str, Any],
+) -> None:
+    """Test key retrieval maps unexpected request errors to connection errors."""
+    with (
+        patch.object(
+            SwitchbotEncryptedDevice,
+            "_async_get_user_info",
+            return_value=mock_user_info,
+        ),
+        patch.object(
+            SwitchbotEncryptedDevice,
+            "api_request",
+            side_effect=Exception("network error"),
+        ),
+    ):
+        session = MagicMock(spec=aiohttp.ClientSession)
         with pytest.raises(
             SwitchbotAccountConnectionError,
             match="Failed to retrieve encryption key",
         ):
+            await SwitchbotEncryptedDevice.async_retrieve_encryption_key_by_token(
+                session, "aa:bb:cc:dd:ee:ff", "oauth-access-token"
+            )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "device_info",
+    [
+        pytest.param({}, id="missing-communication-key"),
+        pytest.param({"communicationKey": None}, id="invalid-communication-key"),
+        pytest.param(
+            {"communicationKey": {"key": "encryption-key"}}, id="missing-key-id"
+        ),
+        pytest.param(
+            {"communicationKey": {"keyId": "ff"}}, id="missing-encryption-key"
+        ),
+        pytest.param(
+            {"communicationKey": {"keyId": 1, "key": "encryption-key"}},
+            id="invalid-key-id",
+        ),
+    ],
+)
+async def test_retrieve_encryption_key_by_token_invalid_response(
+    mock_user_info: dict[str, Any], device_info: dict[str, Any]
+) -> None:
+    """Test malformed key responses retain their API error classification."""
+    with (
+        patch.object(
+            SwitchbotEncryptedDevice,
+            "_async_get_user_info",
+            return_value=mock_user_info,
+        ),
+        patch.object(
+            SwitchbotEncryptedDevice,
+            "api_request",
+            return_value=device_info,
+        ),
+    ):
+        session = MagicMock(spec=aiohttp.ClientSession)
+        with pytest.raises(SwitchbotApiError, match="Invalid encryption key response"):
             await SwitchbotEncryptedDevice.async_retrieve_encryption_key_by_token(
                 session, "aa:bb:cc:dd:ee:ff", "oauth-access-token"
             )

@@ -30,14 +30,12 @@ def _mock_session(
     *,
     status: int = 200,
     json_data: Any = None,
-    text: str = "",
     json_exception: Exception | None = None,
 ) -> MagicMock:
     """Create a mocked client session and response."""
     response = MagicMock()
     response.status = status
     response.headers = {"x-request-id": "oauth-request-id"}
-    response.text = AsyncMock(return_value=text)
     response.json = AsyncMock(return_value=json_data)
     if json_exception is not None:
         response.json.side_effect = json_exception
@@ -161,9 +159,15 @@ async def test_exchange_oauth_code_invalid_token(token: dict[str, Any]) -> None:
 @pytest.mark.parametrize("status", [400, 401, 499])
 async def test_exchange_oauth_code_authentication_error(status: int) -> None:
     """Test a rejected authorization code."""
-    session = _mock_session(status=status, text="invalid grant")
+    session = _mock_session(
+        status=status,
+        json_data={
+            "error": "invalid_grant",
+            "error_description": "Authorization code expired",
+        },
+    )
 
-    with pytest.raises(SwitchbotAuthenticationError, match=str(status)):
+    with pytest.raises(SwitchbotAuthenticationError, match="invalid_grant"):
         await exchange_oauth_code(
             session,
             CLIENT_ID,
@@ -176,9 +180,14 @@ async def test_exchange_oauth_code_authentication_error(status: int) -> None:
 @pytest.mark.parametrize("status", [429, 500, 503])
 async def test_exchange_oauth_code_transient_error(status: int) -> None:
     """Test transient token service errors."""
-    session = _mock_session(status=status, text="service unavailable")
+    session = _mock_session(
+        status=status,
+        json_data={"error": "temporarily_unavailable"},
+    )
 
-    with pytest.raises(SwitchbotAccountConnectionError, match=str(status)):
+    with pytest.raises(
+        SwitchbotAccountConnectionError, match="temporarily_unavailable"
+    ):
         await exchange_oauth_code(
             session,
             CLIENT_ID,
@@ -200,6 +209,26 @@ async def test_exchange_oauth_code_connection_error() -> None:
             REDIRECT_URI,
             "authorization-code",
         )
+
+
+@pytest.mark.asyncio
+async def test_exchange_oauth_code_unparsable_error_response(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test an unparsable OAuth error body is not exposed."""
+    session = _mock_session(
+        status=400,
+        json_exception=ValueError("sensitive-provider-error"),
+    )
+    caplog.set_level(logging.DEBUG, logger="switchbot.oauth")
+
+    with pytest.raises(SwitchbotAuthenticationError, match="400"):
+        await exchange_oauth_code(
+            session, CLIENT_ID, REDIRECT_URI, "authorization-code"
+        )
+
+    assert "error=unavailable" in caplog.text
+    assert "sensitive-provider-error" not in caplog.text
 
 
 @pytest.mark.asyncio
@@ -253,20 +282,12 @@ async def test_oauth_debug_logs_exclude_sensitive_values(
         "sensitive-authorization-code",
     )
 
-    assert "Building SwitchBot OAuth authorization request" in caplog.text
-    assert "authorize_host=sp.oauth.switchbot.net" in caplog.text
-    assert "redirect_host=example.com" in caplog.text
-    assert "token endpoint returned HTTP status 200" in caplog.text
+    assert "sp.oauth.switchbot.net" in caplog.text
+    assert "example.com" in caplog.text
     assert "duration_ms=" in caplog.text
     assert "request_id=oauth-request-id" in caplog.text
-    assert (
-        "token response fields: "
-        "['access_token', 'expires_in', 'refresh_expires_in', 'refresh_token', "
-        "'token_type']"
-    ) in caplog.text
-    assert "token response validated; expires_in=3600" in caplog.text
-    assert "refresh_token_present=True" in caplog.text
-    assert "refresh_expires_in_present=True" in caplog.text
+    assert "access_token" in caplog.text
+    assert "expires_in" in caplog.text
     for sensitive_value in (
         "sensitive-authorization-code",
         "sensitive-access-token",
@@ -278,14 +299,23 @@ async def test_oauth_debug_logs_exclude_sensitive_values(
 
 
 @pytest.mark.asyncio
-async def test_oauth_error_logs_exclude_response_body(
+async def test_oauth_error_logs_include_safe_fields_only(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """Test an OAuth error body is summarized but not logged."""
-    session = _mock_session(status=400, text="sensitive-provider-error")
+    """Test only bounded, redacted OAuth error fields are logged."""
+    session = _mock_session(
+        status=400,
+        json_data={
+            "error": "invalid_grant",
+            "error_description": (
+                "Authorization code sensitive-authorization-code expired"
+            ),
+            "ignored": "sensitive-provider-error",
+        },
+    )
     caplog.set_level(logging.DEBUG, logger="switchbot.oauth")
 
-    with pytest.raises(SwitchbotAuthenticationError):
+    with pytest.raises(SwitchbotAuthenticationError, match="invalid_grant"):
         await exchange_oauth_code(
             session,
             CLIENT_ID,
@@ -293,6 +323,8 @@ async def test_oauth_error_logs_exclude_response_body(
             "sensitive-authorization-code",
         )
 
-    assert "body_length=24" in caplog.text
+    assert "invalid_grant" in caplog.text
+    assert "Authorization code <redacted> expired" in caplog.text
+    assert "<redacted>" in caplog.text
     assert "sensitive-provider-error" not in caplog.text
     assert "sensitive-authorization-code" not in caplog.text

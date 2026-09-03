@@ -10,6 +10,51 @@ source .venv/bin/activate
 pip install .
 ```
 
+## OAuth account access
+
+pySwitchbot provides helpers for SwitchBot's authorization-code flow. The
+calling application supplies a SwitchBot-issued client ID and its registered
+redirect URI; neither value is tied to Home Assistant or embedded in the
+library.
+
+SwitchBot currently treats these integrations as public clients: the token
+request does not use a client secret, and the authorization server does not
+support PKCE. The caller must generate an unpredictable, single-use `state`,
+store it for the duration of the flow, and reject callbacks whose state does
+not match. State protects the callback from request forgery but does not
+replace PKCE.
+
+```python
+import secrets
+
+from switchbot import build_oauth_authorize_url, exchange_oauth_code
+
+state = secrets.token_urlsafe(32)
+authorize_url = build_oauth_authorize_url(client_id, redirect_uri, state)
+
+# Store state before sending the user to authorize_url. On callback:
+if callback_state != state:
+    raise ValueError("OAuth state mismatch")
+
+token = await exchange_oauth_code(
+    session,
+    client_id,
+    redirect_uri,
+    authorization_code,
+)
+```
+
+The client ID and redirect URI must be registered with SwitchBot; arbitrary
+values will not work. `exchange_oauth_code` returns the provider's token
+mapping unchanged after validating the access token and expiry fields. The
+access token can then be passed to `fetch_cloud_devices_by_token` or
+`SwitchbotEncryptedDevice.async_retrieve_encryption_key_by_token`.
+
+HTTP 401 and 403 responses from the SwitchBot account API raise
+`SwitchbotAuthenticationError`. Other API failures raise `SwitchbotApiError`,
+while transport and availability failures raise
+`SwitchbotAccountConnectionError`.
+
 ## Obtaining encryption key for Switchbot Locks
 
 Using the script `scripts/get_encryption_key.py` you can manually obtain locks encryption key.
