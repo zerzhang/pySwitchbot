@@ -1140,9 +1140,8 @@ class SwitchbotEncryptedDevice(SwitchbotDevice):
         except Exception as err:
             raise SwitchbotAuthenticationError(f"Authentication failed: {err}") from err
 
-        return await cls._async_retrieve_encryption_key(
-            session, device_mac, auth_headers
-        )
+        retrieve_encryption_key = cls._async_retrieve_encryption_key
+        return await retrieve_encryption_key(session, device_mac, auth_headers)
 
     @classmethod
     async def async_retrieve_encryption_key_by_token(
